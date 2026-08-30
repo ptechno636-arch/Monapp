@@ -1,19 +1,63 @@
 let clients = [];
-const STORAGE_KEY = 'atelier-clients-data';
+let unsubscribe = null;
 
-function loadClients(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    clients = raw ? JSON.parse(raw) : [];
-  }catch(e){
+// ---------- Authentification ----------
+const loginScreen = document.getElementById('login-screen');
+const appEl = document.getElementById('app');
+const loginForm = document.getElementById('login-form');
+const loginError = document.getElementById('login-error');
+
+loginForm.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  loginError.textContent = '';
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  auth.signInWithEmailAndPassword(email, pass).catch(err=>{
+    loginError.textContent = "E-mail ou mot de passe incorrect.";
+  });
+});
+
+document.getElementById('logout-btn').addEventListener('click', ()=>{
+  auth.signOut();
+});
+
+auth.onAuthStateChanged(user=>{
+  if(user){
+    loginScreen.hidden = true;
+    appEl.hidden = false;
+    startSync();
+  }else{
+    loginScreen.hidden = false;
+    appEl.hidden = true;
+    if(unsubscribe){ unsubscribe(); unsubscribe = null; }
     clients = [];
   }
-  renderAll();
+});
+
+// ---------- Synchronisation en temps réel (Firestore) ----------
+function startSync(){
+  const status = document.getElementById('sync-status');
+  unsubscribe = db.collection('clients').onSnapshot(snapshot=>{
+    clients = snapshot.docs.map(d=>d.data());
+    renderAll();
+    status.textContent = "Synchronisé avec toute l'équipe ✓";
+  }, err=>{
+    status.textContent = "Erreur de connexion à la base partagée.";
+  });
 }
 
-function persist(){
+async function saveClientRemote(data){
   try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(clients));
+    await db.collection('clients').doc(data.id).set(data);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+async function deleteClientRemote(id){
+  try{
+    await db.collection('clients').doc(id).delete();
     return true;
   }catch(e){
     return false;
@@ -85,9 +129,34 @@ function updateResteHint(){
 document.getElementById('f-prix').addEventListener('input', updateResteHint);
 document.getElementById('f-paye').addEventListener('input', updateResteHint);
 
+// --- Photo (compressée avant stockage) ---
+let currentPhoto = '';
+document.getElementById('f-photo').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const canvas = document.createElement('canvas');
+      const maxW = 480;
+      const scale = Math.min(1, maxW / img.width);
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      currentPhoto = canvas.toDataURL('image/jpeg', 0.6);
+      const preview = document.getElementById('photo-preview');
+      preview.src = currentPhoto;
+      preview.style.display = 'block';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
 // --- Enregistrement du formulaire ---
 const form = document.getElementById('client-form');
-form.addEventListener('submit', (e)=>{
+form.addEventListener('submit', async (e)=>{
   e.preventDefault();
   const nom = document.getElementById('f-nom').value.trim();
   if(!nom){ showToast('Le nom du client est obligatoire.'); return; }
@@ -104,8 +173,11 @@ form.addEventListener('submit', (e)=>{
     tourBras: document.getElementById('mm-bras').value,
     tourPoignet: document.getElementById('mm-poignet').value,
     longueurGenou: document.getElementById('mm-genou').value,
+    longueurChemise: document.getElementById('mm-chemise').value,
     longueurTotale: document.getElementById('mm-totale').value,
   };
+
+  const editingClient = editId ? clients.find(c=>c.id===editId) : null;
 
   const data = {
     id: editId || ('c_' + Date.now()),
@@ -117,22 +189,24 @@ form.addEventListener('submit', (e)=>{
     dateRetrait: document.getElementById('f-retrait').value,
     prixTotal: Number(document.getElementById('f-prix').value)||0,
     montantPaye: Number(document.getElementById('f-paye').value)||0,
-    statut: editId ? (clients.find(c=>c.id===editId)||{}).statut || 'en_attente' : 'en_attente',
-    dateCreation: editId ? (clients.find(c=>c.id===editId)||{}).dateCreation : new Date().toISOString(),
+    statut: editId ? (editingClient||{}).statut || 'en_attente' : 'en_attente',
+    dateCreation: editId ? (editingClient||{}).dateCreation : new Date().toISOString(),
+    modifiePar: (auth.currentUser && auth.currentUser.email) || '',
+    photo: currentPhoto || (editingClient && editingClient.photo) || '',
   };
 
+  // Affichage optimiste : on montre tout de suite, la synchro suit derrière.
   if(editId){
     clients = clients.map(c => c.id===editId ? data : c);
   }else{
     clients.push(data);
   }
-
   resetForm();
   renderAll();
   goTab('clients');
 
-  const ok = persist();
-  showToast(ok ? (editId ? 'Fiche mise à jour.' : 'Client enregistré.') : "Attention : la sauvegarde a échoué sur cet appareil.");
+  const ok = await saveClientRemote(data);
+  showToast(ok ? (editId ? "Fiche mise à jour pour toute l'équipe." : "Client enregistré pour toute l'équipe.") : "La sauvegarde en ligne a échoué, vérifie ta connexion internet.");
 });
 
 document.getElementById('cancel-edit').addEventListener('click', ()=>{
@@ -142,6 +216,9 @@ document.getElementById('cancel-edit').addEventListener('click', ()=>{
 
 function resetForm(){
   form.reset();
+  currentPhoto = '';
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-preview').src = '';
   document.getElementById('edit-id').value='';
   document.getElementById('form-title').textContent = 'Nouveau client';
   document.getElementById('submit-btn').textContent = 'Enregistrer le client';
@@ -167,12 +244,17 @@ function editClient(id){
   document.getElementById('mm-bras').value = m.tourBras||'';
   document.getElementById('mm-poignet').value = m.tourPoignet||'';
   document.getElementById('mm-genou').value = m.longueurGenou||'';
+  document.getElementById('mm-chemise').value = m.longueurChemise||'';
   document.getElementById('mm-totale').value = m.longueurTotale||'';
   document.getElementById('mm-notes').value = c.notesMesures||'';
   document.getElementById('f-tissu').value = c.tissu||'';
   document.getElementById('f-retrait').value = c.dateRetrait||'';
   document.getElementById('f-prix').value = c.prixTotal||'';
   document.getElementById('f-paye').value = c.montantPaye||'';
+  currentPhoto = c.photo || '';
+  const preview = document.getElementById('photo-preview');
+  if(c.photo){ preview.src = c.photo; preview.style.display='block'; }
+  else { preview.style.display='none'; }
   document.getElementById('form-title').textContent = 'Modifier ' + c.nom;
   document.getElementById('submit-btn').textContent = 'Mettre à jour';
   document.getElementById('cancel-edit').hidden = false;
@@ -180,54 +262,37 @@ function editClient(id){
   goTab('new-client');
 }
 
-function deleteClient(id){
+async function deleteClient(id){
   const c = clients.find(x=>x.id===id);
   if(!c) return;
-  if(!confirm(`Supprimer la fiche de ${c.nom} ?`)) return;
+  if(!confirm(`Supprimer la fiche de ${c.nom} ? Cette action est visible par toute l'équipe.`)) return;
   clients = clients.filter(x=>x.id!==id);
-  persist();
   renderAll();
-  showToast('Fiche supprimée.');
+  await deleteClientRemote(id);
+  showToast("Fiche supprimée pour toute l'équipe.");
 }
 
-function setStatut(id, statut){
-  clients = clients.map(c => c.id===id ? {...c, statut} : c);
-  persist();
+async function setStatut(id, statut){
+  const c = clients.find(x=>x.id===id);
+  if(!c) return;
+  const updated = {...c, statut};
+  clients = clients.map(x => x.id===id ? updated : x);
   renderAll();
+  await saveClientRemote(updated);
 }
 
-// --- Sauvegarde manuelle (export / import) ---
+// --- Sauvegarde manuelle (export) ---
 document.getElementById('export-btn').addEventListener('click', ()=>{
   const blob = new Blob([JSON.stringify(clients, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `atelier-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
+  a.download = `elikem-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
   showToast('Sauvegarde téléchargée.');
-});
-
-document.getElementById('import-input').addEventListener('change', (e)=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev)=>{
-    try{
-      const data = JSON.parse(ev.target.result);
-      if(!Array.isArray(data)) throw new Error('format invalide');
-      clients = data;
-      persist();
-      renderAll();
-      showToast('Sauvegarde importée avec succès.');
-    }catch(err){
-      showToast("Ce fichier n'est pas une sauvegarde valide.");
-    }
-  };
-  reader.readAsText(file);
-  e.target.value = '';
 });
 
 // --- Affichage ---
@@ -239,6 +304,10 @@ function renderAll(){
 function renderDashboard(){
   const enAttente = clients.filter(c=>c.statut!=='livre');
   const retard = clients.filter(c=> c.statut!=='livre' && daysUntil(c.dateRetrait)!==null && daysUntil(c.dateRetrait)<0);
+  const urgent = clients.filter(c=>{
+    const du = daysUntil(c.dateRetrait);
+    return c.statut!=='livre' && du!==null && du>=0 && du<=1;
+  });
   const semaine = clients.filter(c=>{
     const du = daysUntil(c.dateRetrait);
     return c.statut!=='livre' && du!==null && du>=0 && du<=7;
@@ -248,6 +317,9 @@ function renderDashboard(){
   document.getElementById('m-semaine').textContent = semaine.length;
   document.getElementById('m-retard').textContent = retard.length;
   document.getElementById('m-total').textContent = clients.length;
+
+  document.getElementById('urgent-list').innerHTML = urgent.length ? urgent.map(c=>cardHtml(c)).join('') :
+    '<div class="empty">Rien d\'urgent pour le moment.</div>';
 
   const upcoming = semaine.slice().sort((a,b)=> (a.dateRetrait||'').localeCompare(b.dateRetrait||''));
   document.getElementById('upcoming-list').innerHTML = upcoming.length ? upcoming.map(c=>cardHtml(c)).join('') :
@@ -292,9 +364,12 @@ function cardHtml(c, withActions){
 
   return `<div class="card">
     <div class="card-row">
-      <div>
-        <div class="card-name">${escapeHtml(c.nom)}</div>
-        <div class="card-sub">${c.tissu ? escapeHtml(c.tissu) : 'Tissu non précisé'} · Retrait : ${fmtDate(c.dateRetrait)}</div>
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+        ${c.photo ? `<img src="${c.photo}" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid var(--line);flex-shrink:0;">` : ''}
+        <div>
+          <div class="card-name">${escapeHtml(c.nom)}</div>
+          <div class="card-sub">${c.tissu ? escapeHtml(c.tissu) : 'Tissu non précisé'} · Retrait : ${fmtDate(c.dateRetrait)}</div>
+        </div>
       </div>
       <span class="tag ${st.cls}">${st.text}</span>
     </div>
@@ -302,6 +377,7 @@ function cardHtml(c, withActions){
       ${c.telephone ? 'Tél : '+escapeHtml(c.telephone)+' · ' : ''}Reste à payer : ${fmtMoney(reste)}
     </div>
     ${measureEntries.length ? `<div class="measures-mini">${measureEntries.map(([l,v])=>`<span>${l}: ${v}cm</span>`).join('')}</div>` : ''}
+    ${c.modifiePar ? `<div class="card-sub" style="margin-top:4px;font-size:11px;">Ajouté par ${escapeHtml(c.modifiePar)}</div>` : ''}
     ${withActions ? `<div class="actions">
       <button class="ghost" onclick="editClient('${c.id}')">Modifier</button>
       ${c.statut!=='pret' && c.statut!=='livre' ? `<button class="ghost" onclick="setStatut('${c.id}','pret')">Marquer prêt</button>` : ''}
@@ -314,5 +390,3 @@ function cardHtml(c, withActions){
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
-
-loadClients();
