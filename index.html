@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atelier — Gestion des clients</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header>
+    <p class="eyebrow">Atelier de couture</p>
+    <h1>Carnet de mesures</h1>
+    <p class="tagline">Clients, mesures, tissus et dates de retrait — au même endroit.</p>
+  </header>
+
+  <svg class="tape" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
+    <defs>
+      <pattern id="ticks" width="20" height="24" patternUnits="userSpaceOnUse">
+        <line x1="0" y1="24" x2="0" y2="8" stroke="#B8842E" stroke-width="1.1"/>
+        <line x1="10" y1="24" x2="10" y2="16" stroke="#B8842E" stroke-width="0.7" opacity="0.55"/>
+      </pattern>
+    </defs>
+    <rect width="200" height="24" fill="url(#ticks)"/>
+  </svg>
+
+  <nav>
+    <button data-tab="dashboard" class="active">Tableau de bord</button>
+    <button data-tab="new-client">Nouveau client</button>
+    <button data-tab="clients">Tous les clients</button>
+  </nav>
+
+  <main>
+    <section id="dashboard">
+      <div class="backup-row">
+        <button class="ghost" id="export-btn">Exporter une sauvegarde</button>
+        <label class="ghost file-label">Importer une sauvegarde
+          <input type="file" id="import-input" accept="application/json" hidden>
+        </label>
+      </div>
+
+      <div class="grid-metrics">
+        <div class="metric"><div class="num" id="m-attente">0</div><div class="label">En attente</div></div>
+        <div class="metric"><div class="num" id="m-semaine">0</div><div class="label">Retraits cette semaine</div></div>
+        <div class="metric"><div class="num" id="m-retard">0</div><div class="label">En retard</div></div>
+        <div class="metric"><div class="num" id="m-total">0</div><div class="label">Clients au total</div></div>
+      </div>
+
+      <h2>Prochains retraits</h2>
+      <div id="upcoming-list"></div>
+
+      <h2 style="margin-top:26px;">En retard</h2>
+      <div id="late-list"></div>
+    </section>
+
+    <section id="new-client" hidden>
+      <h2 id="form-title">Nouveau client</h2>
+      <form id="client-form">
+        <input type="hidden" id="edit-id">
+        <div class="field-group">
+          <legend>Identité</legend>
+          <div class="row2">
+            <div class="field"><label for="f-nom">Nom complet</label><input id="f-nom" required placeholder="Ex: Akossiwa Mensah"></div>
+            <div class="field"><label for="f-tel">Téléphone</label><input id="f-tel" placeholder="Ex: 90 12 34 56"></div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <legend>Mesures (cm)</legend>
+          <div class="fgrid">
+            <div class="field"><label for="mm-cou">Tour de cou</label><input type="number" step="0.5" id="mm-cou"></div>
+            <div class="field"><label for="mm-poitrine">Tour de poitrine</label><input type="number" step="0.5" id="mm-poitrine"></div>
+            <div class="field"><label for="mm-taille">Tour de taille</label><input type="number" step="0.5" id="mm-taille"></div>
+            <div class="field"><label for="mm-bassin">Tour de bassin</label><input type="number" step="0.5" id="mm-bassin"></div>
+            <div class="field"><label for="mm-carrure">Carrure (dos)</label><input type="number" step="0.5" id="mm-carrure"></div>
+            <div class="field"><label for="mm-longdos">Longueur du dos</label><input type="number" step="0.5" id="mm-longdos"></div>
+            <div class="field"><label for="mm-manche">Longueur manche</label><input type="number" step="0.5" id="mm-manche"></div>
+            <div class="field"><label for="mm-bras">Tour de bras</label><input type="number" step="0.5" id="mm-bras"></div>
+            <div class="field"><label for="mm-poignet">Tour de poignet</label><input type="number" step="0.5" id="mm-poignet"></div>
+            <div class="field"><label for="mm-genou">Longueur genou</label><input type="number" step="0.5" id="mm-genou"></div>
+            <div class="field"><label for="mm-totale">Longueur totale</label><input type="number" step="0.5" id="mm-totale"></div>
+          </div>
+          <div class="field" style="margin-top:12px;">
+            <label for="mm-notes">Autres mesures / précisions</label>
+            <textarea id="mm-notes" placeholder="Ex: taille basse, manche courte..."></textarea>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <legend>Commande</legend>
+          <div class="row2">
+            <div class="field"><label for="f-tissu">Type de tissu apporté</label><input id="f-tissu" placeholder="Ex: Pagne wax bleu"></div>
+            <div class="field"><label for="f-retrait">Date de retrait prévue</label><input type="date" id="f-retrait"></div>
+          </div>
+          <p class="warn" id="warn-jour">Conseil : privilégie le mardi, le mercredi ou le jeudi pour les retraits.</p>
+          <div class="row2" style="margin-top:12px;">
+            <div class="field"><label for="f-prix">Prix total (FCFA)</label><input type="number" step="100" id="f-prix"></div>
+            <div class="field"><label for="f-paye">Montant déjà payé (FCFA)</label><input type="number" step="100" id="f-paye"></div>
+          </div>
+          <p class="hint" id="reste-hint"></p>
+        </div>
+
+        <button type="submit" class="primary" id="submit-btn">Enregistrer le client</button>
+        <button type="button" class="ghost" id="cancel-edit" hidden style="margin-left:8px;">Annuler la modification</button>
+      </form>
+    </section>
+
+    <section id="clients" hidden>
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder="Rechercher un nom...">
+        <div class="filters">
+          <button data-filter="tous" class="active">Tous</button>
+          <button data-filter="en_attente">En attente</button>
+          <button data-filter="pret">Prêt</button>
+          <button data-filter="livre">Livré</button>
+        </div>
+      </div>
+      <div id="clients-list"></div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script src="script.js"></script>
+</body>
+</html>
