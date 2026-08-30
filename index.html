@@ -3,24 +3,57 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Atelier — Gestion des clients</title>
+<title>Elikem Haute Couture — Carnet de mesures</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<!-- Firebase (authentification + base de données partagée) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-<div class="app">
+
+<!-- Écran de connexion -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <img src="assets/images/logo.jpg" alt="Elikem Haute Couture" class="login-logo">
+    <p class="login-tagline">L'élégance sur mesure</p>
+    <form id="login-form">
+      <div class="field" style="margin-bottom:12px;">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" required placeholder="ton.email@exemple.com">
+      </div>
+      <div class="field" style="margin-bottom:16px;">
+        <label for="login-pass">Mot de passe</label>
+        <input type="password" id="login-pass" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="primary" style="width:100%;">Se connecter</button>
+      <p class="login-error" id="login-error"></p>
+    </form>
+    <p class="hint" style="margin-top:16px;text-align:center;">
+      Accès réservé à Elikem Haute Couture et ses collaborateurs.
+    </p>
+  </div>
+</div>
+
+<!-- Application -->
+<div class="app" id="app" hidden>
   <header>
-    <p class="eyebrow">Atelier de couture</p>
+    <div class="header-row">
+      <img src="assets/images/logo.jpg" alt="Elikem Haute Couture" class="header-logo">
+      <button class="ghost" id="logout-btn">Déconnexion</button>
+    </div>
+    <p class="eyebrow">Elikem Haute Couture</p>
     <h1>Carnet de mesures</h1>
-    <p class="tagline">Clients, mesures, tissus et dates de retrait — au même endroit.</p>
+    <p class="tagline">Clients, mesures, tissus et dates de retrait — partagés avec toute l'équipe.</p>
   </header>
 
   <svg class="tape" viewBox="0 0 200 24" preserveAspectRatio="none" aria-hidden="true">
     <defs>
       <pattern id="ticks" width="20" height="24" patternUnits="userSpaceOnUse">
-        <line x1="0" y1="24" x2="0" y2="8" stroke="#B8842E" stroke-width="1.1"/>
-        <line x1="10" y1="24" x2="10" y2="16" stroke="#B8842E" stroke-width="0.7" opacity="0.55"/>
+        <line x1="0" y1="24" x2="0" y2="8" stroke="#B8874A" stroke-width="1.1"/>
+        <line x1="10" y1="24" x2="10" y2="16" stroke="#B8874A" stroke-width="0.7" opacity="0.55"/>
       </pattern>
     </defs>
     <rect width="200" height="24" fill="url(#ticks)"/>
@@ -36,9 +69,7 @@
     <section id="dashboard">
       <div class="backup-row">
         <button class="ghost" id="export-btn">Exporter une sauvegarde</button>
-        <label class="ghost file-label">Importer une sauvegarde
-          <input type="file" id="import-input" accept="application/json" hidden>
-        </label>
+        <span class="hint" id="sync-status">Connexion à la base partagée...</span>
       </div>
 
       <div class="grid-metrics">
@@ -48,7 +79,10 @@
         <div class="metric"><div class="num" id="m-total">0</div><div class="label">Clients au total</div></div>
       </div>
 
-      <h2>Prochains retraits</h2>
+      <h2>Urgent — moins de 24h</h2>
+      <div id="urgent-list"></div>
+
+      <h2 style="margin-top:26px;">Prochains retraits</h2>
       <div id="upcoming-list"></div>
 
       <h2 style="margin-top:26px;">En retard</h2>
@@ -80,12 +114,20 @@
             <div class="field"><label for="mm-bras">Tour de bras</label><input type="number" step="0.5" id="mm-bras"></div>
             <div class="field"><label for="mm-poignet">Tour de poignet</label><input type="number" step="0.5" id="mm-poignet"></div>
             <div class="field"><label for="mm-genou">Longueur genou</label><input type="number" step="0.5" id="mm-genou"></div>
+            <div class="field"><label for="mm-chemise">Longueur chemise</label><input type="number" step="0.5" id="mm-chemise"></div>
             <div class="field"><label for="mm-totale">Longueur totale</label><input type="number" step="0.5" id="mm-totale"></div>
           </div>
           <div class="field" style="margin-top:12px;">
             <label for="mm-notes">Autres mesures / précisions</label>
             <textarea id="mm-notes" placeholder="Ex: taille basse, manche courte..."></textarea>
           </div>
+        </div>
+
+        <div class="field-group">
+          <legend>Photo (client ou tissu)</legend>
+          <input type="file" id="f-photo" accept="image/*" capture="environment">
+          <img id="photo-preview" style="display:none;max-width:160px;border-radius:8px;margin-top:10px;border:1px solid var(--line);">
+          <p class="hint">Optionnel — pour reconnaître facilement le client ou le tissu apporté.</p>
         </div>
 
         <div class="field-group">
@@ -122,6 +164,7 @@
   </main>
 </div>
 <div class="toast" id="toast"></div>
+<script src="firebase-config.js"></script>
 <script src="script.js"></script>
 </body>
 </html>
