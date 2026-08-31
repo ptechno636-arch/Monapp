@@ -1,34 +1,56 @@
 :root{
   --bg:#F7F4EE;
   --surface:#FFFFFF;
-  --ink:#1A1714;
+  --ink:#161310;
   --ink-soft:#6B6153;
-  --line:#E3DCCB;
-  --gold:#B8874A;
-  --gold-deep:#8C6420;
+  --line:#E8E0CC;
+  --gold:#C9A24B;
+  --gold-deep:#9A7420;
+  --gold-soft:#F0E4C4;
   --rust:#A23E2E;
   --rust-bg:#F5E2DC;
   --green:#4C7A4A;
   --green-bg:#E3ECE1;
   --amber-bg:#F7EAD3;
-  --radius:10px;
+  --radius:20px;
 }
+.welcome-screen{
+  position:fixed;inset:0;z-index:50;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(circle at 50% 30%, #232019 0%, #100E0B 70%);
+}
+.welcome-screen[hidden]{display:none;}
+.welcome-content{text-align:center;animation:welcomeIn .5s ease;}
+.welcome-check{
+  width:64px;height:64px;border-radius:50%;
+  background:linear-gradient(135deg, var(--gold), var(--gold-deep));
+  color:#161310;font-size:30px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+  margin:0 auto 18px;
+  box-shadow:0 0 40px rgba(201,162,75,0.45);
+}
+.welcome-text{color:#D9CEB8;font-size:16px;margin:0;font-family:'Work Sans',sans-serif;}
+.welcome-email{
+  color:#FFFDF7;font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:4px 0 0;
+}
+@keyframes welcomeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .login-screen{
   min-height:100vh;
   display:flex;
   align-items:center;
   justify-content:center;
-  background:var(--ink);
+  background:radial-gradient(circle at 50% 30%, #2A2620 0%, #100E0B 75%);
   padding:20px;
 }
 .login-card{
   background:var(--surface);
-  border-radius:14px;
-  padding:36px 28px;
+  border-radius:28px;
+  padding:40px 30px;
   max-width:360px;
   width:100%;
   text-align:center;
-  border:1px solid var(--line);
+  border:1px solid var(--gold-soft);
+  box-shadow:0 20px 60px rgba(0,0,0,0.35);
 }
 .login-logo{width:100%;max-width:220px;margin:0 auto 4px;display:block;}
 .login-tagline{
@@ -44,6 +66,7 @@
 .header-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
 .header-logo{height:56px;width:auto;}
 *{box-sizing:border-box;}
+[hidden]{display:none !important;}
 body{
   margin:0;
   background:var(--bg);
@@ -92,10 +115,11 @@ section[hidden]{display:none;}
 .file-label{display:inline-flex;align-items:center;}
 .grid-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:30px;}
 .metric{
-  background:var(--surface);
+  background:linear-gradient(160deg, var(--surface), #FBF7EC);
   border:1px solid var(--line);
-  border-radius:var(--radius);
-  padding:16px 18px;
+  border-radius:18px;
+  padding:18px 20px;
+  box-shadow:0 1px 4px rgba(22,19,16,0.05);
 }
 .metric .num{font-family:'Fraunces',serif;font-size:30px;font-weight:600;}
 .metric .label{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
@@ -107,10 +131,18 @@ h2{
 }
 .card{
   background:var(--surface);
-  border:1.5px dashed var(--gold);
+  border:1px solid var(--line);
   border-radius:var(--radius);
-  padding:16px 18px;
-  margin-bottom:12px;
+  padding:18px 20px;
+  margin-bottom:14px;
+  box-shadow:0 1px 3px rgba(22,19,16,0.04);
+  position:relative;
+  overflow:hidden;
+}
+.card::before{
+  content:'';
+  position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg, var(--gold), var(--gold-soft), var(--gold));
 }
 .card-row{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;}
 .card-name{font-weight:600;font-size:15.5px;}
@@ -134,7 +166,7 @@ h2{
   border:1px dashed var(--line);
   border-radius:var(--radius);
 }
-form{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:24px;}
+form{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:26px;}
 .field-group{margin-bottom:20px;}
 .field-group legend{
   font-family:'IBM Plex Mono',monospace;
@@ -151,9 +183,9 @@ input,select,textarea{
   width:100%;
   font-family:'Work Sans',sans-serif;
   font-size:14.5px;
-  padding:9px 10px;
+  padding:10px 14px;
   border:1px solid var(--line);
-  border-radius:6px;
+  border-radius:12px;
   background:#fff;
   color:var(--ink);
 }
@@ -168,9 +200,9 @@ button.primary{
   font-family:'Work Sans',sans-serif;
   font-weight:500;
   font-size:14.5px;
-  padding:11px 22px;
-  border-radius:8px;
-  background:var(--ink);
+  padding:13px 26px;
+  border-radius:999px;
+  background:linear-gradient(135deg, var(--ink), #2A2620);
   color:var(--surface);
   border:none;
   cursor:pointer;
@@ -179,8 +211,8 @@ button.primary{
 button.ghost,.ghost{
   font-family:'Work Sans',sans-serif;
   font-size:13px;
-  padding:7px 13px;
-  border-radius:7px;
+  padding:8px 16px;
+  border-radius:999px;
   background:transparent;
   border:1px solid var(--line);
   color:var(--ink-soft);
