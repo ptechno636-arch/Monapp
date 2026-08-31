@@ -17,7 +17,7 @@
 <!-- Écran de connexion -->
 <div class="login-screen" id="login-screen">
   <div class="login-card">
-    <img src="assets/images/logo.jpg" alt="Elikem Haute Couture" class="login-logo">
+    <img src="logo.jpg" alt="Elikem Haute Couture" class="login-logo" onerror="this.style.display='none'">
     <p class="login-tagline">L'élégance sur mesure</p>
     <form id="login-form">
       <div class="field" style="margin-bottom:12px;">
@@ -37,11 +37,20 @@
   </div>
 </div>
 
+<!-- Écran de bienvenue -->
+<div class="welcome-screen" id="welcome-screen" hidden>
+  <div class="welcome-content">
+    <div class="welcome-check">✓</div>
+    <p class="welcome-text">Bienvenue,</p>
+    <p class="welcome-email" id="welcome-email"></p>
+  </div>
+</div>
+
 <!-- Application -->
 <div class="app" id="app" hidden>
   <header>
     <div class="header-row">
-      <img src="assets/images/logo.jpg" alt="Elikem Haute Couture" class="header-logo">
+      <img src="logo.jpg" alt="Elikem Haute Couture" class="header-logo" onerror="this.style.display='none'">
       <button class="ghost" id="logout-btn">Déconnexion</button>
     </div>
     <p class="eyebrow">Elikem Haute Couture</p>
