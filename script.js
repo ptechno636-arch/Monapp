@@ -24,8 +24,14 @@ document.getElementById('logout-btn').addEventListener('click', ()=>{
 auth.onAuthStateChanged(user=>{
   if(user){
     loginScreen.hidden = true;
-    appEl.hidden = false;
-    startSync();
+    const welcome = document.getElementById('welcome-screen');
+    document.getElementById('welcome-email').textContent = user.email;
+    welcome.hidden = false;
+    setTimeout(()=>{
+      welcome.hidden = true;
+      appEl.hidden = false;
+      startSync();
+    }, 1400);
   }else{
     loginScreen.hidden = false;
     appEl.hidden = true;
@@ -126,42 +132,66 @@ function updateResteHint(){
   const reste = prix - paye;
   document.getElementById('reste-hint').textContent = prix ? `Reste à payer : ${fmtMoney(reste)}` : '';
 }
+
 document.getElementById('f-prix').addEventListener('input', updateResteHint);
 document.getElementById('f-paye').addEventListener('input', updateResteHint);
 
 // --- Photo (compressée avant stockage) ---
 let currentPhoto = '';
+
 document.getElementById('f-photo').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+
   const reader = new FileReader();
+
   reader.onload = (ev)=>{
     const img = new Image();
+
     img.onload = ()=>{
       const canvas = document.createElement('canvas');
       const maxW = 480;
       const scale = Math.min(1, maxW / img.width);
+
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.getContext('2d').drawImage(
+        img,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
       currentPhoto = canvas.toDataURL('image/jpeg', 0.6);
+
       const preview = document.getElementById('photo-preview');
       preview.src = currentPhoto;
       preview.style.display = 'block';
     };
+
     img.src = ev.target.result;
   };
+
   reader.readAsDataURL(file);
 });
 
 // --- Enregistrement du formulaire ---
 const form = document.getElementById('client-form');
+
 form.addEventListener('submit', async (e)=>{
   e.preventDefault();
+
   const nom = document.getElementById('f-nom').value.trim();
-  if(!nom){ showToast('Le nom du client est obligatoire.'); return; }
+
+  if(!nom){
+    showToast('Le nom du client est obligatoire.');
+    return;
+  }
 
   const editId = document.getElementById('edit-id').value;
+
   const measures = {
     cou: document.getElementById('mm-cou').value,
     poitrine: document.getElementById('mm-poitrine').value,
@@ -201,12 +231,20 @@ form.addEventListener('submit', async (e)=>{
   }else{
     clients.push(data);
   }
+
   resetForm();
   renderAll();
   goTab('clients');
 
   const ok = await saveClientRemote(data);
-  showToast(ok ? (editId ? "Fiche mise à jour pour toute l'équipe." : "Client enregistré pour toute l'équipe.") : "La sauvegarde en ligne a échoué, vérifie ta connexion internet.");
+
+  showToast(
+    ok
+      ? (editId
+          ? "Fiche mise à jour pour toute l'équipe."
+          : "Client enregistré pour toute l'équipe.")
+      : "La sauvegarde en ligne a échoué, vérifie ta connexion internet."
+  );
 });
 
 document.getElementById('cancel-edit').addEventListener('click', ()=>{
@@ -217,8 +255,10 @@ document.getElementById('cancel-edit').addEventListener('click', ()=>{
 function resetForm(){
   form.reset();
   currentPhoto = '';
+
   document.getElementById('photo-preview').style.display = 'none';
   document.getElementById('photo-preview').src = '';
+
   document.getElementById('edit-id').value='';
   document.getElementById('form-title').textContent = 'Nouveau client';
   document.getElementById('submit-btn').textContent = 'Enregistrer le client';
@@ -230,10 +270,13 @@ function resetForm(){
 function editClient(id){
   const c = clients.find(x=>x.id===id);
   if(!c) return;
+
   document.getElementById('edit-id').value = c.id;
   document.getElementById('f-nom').value = c.nom||'';
   document.getElementById('f-tel').value = c.telephone||'';
+
   const m = c.mesures||{};
+
   document.getElementById('mm-cou').value = m.cou||'';
   document.getElementById('mm-poitrine').value = m.poitrine||'';
   document.getElementById('mm-taille').value = m.taille||'';
@@ -251,13 +294,22 @@ function editClient(id){
   document.getElementById('f-retrait').value = c.dateRetrait||'';
   document.getElementById('f-prix').value = c.prixTotal||'';
   document.getElementById('f-paye').value = c.montantPaye||'';
+
   currentPhoto = c.photo || '';
+
   const preview = document.getElementById('photo-preview');
-  if(c.photo){ preview.src = c.photo; preview.style.display='block'; }
-  else { preview.style.display='none'; }
+
+  if(c.photo){
+    preview.src = c.photo;
+    preview.style.display='block';
+  }else{
+    preview.style.display='none';
+  }
+
   document.getElementById('form-title').textContent = 'Modifier ' + c.nom;
   document.getElementById('submit-btn').textContent = 'Mettre à jour';
   document.getElementById('cancel-edit').hidden = false;
+
   updateResteHint();
   goTab('new-client');
 }
@@ -265,33 +317,49 @@ function editClient(id){
 async function deleteClient(id){
   const c = clients.find(x=>x.id===id);
   if(!c) return;
+
   if(!confirm(`Supprimer la fiche de ${c.nom} ? Cette action est visible par toute l'équipe.`)) return;
+
   clients = clients.filter(x=>x.id!==id);
   renderAll();
+
   await deleteClientRemote(id);
+
   showToast("Fiche supprimée pour toute l'équipe.");
 }
 
 async function setStatut(id, statut){
   const c = clients.find(x=>x.id===id);
   if(!c) return;
+
   const updated = {...c, statut};
+
   clients = clients.map(x => x.id===id ? updated : x);
+
   renderAll();
+
   await saveClientRemote(updated);
 }
 
 // --- Sauvegarde manuelle (export) ---
 document.getElementById('export-btn').addEventListener('click', ()=>{
-  const blob = new Blob([JSON.stringify(clients, null, 2)], {type:'application/json'});
+  const blob = new Blob(
+    [JSON.stringify(clients, null, 2)],
+    {type:'application/json'}
+  );
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+
   a.href = url;
   a.download = `elikem-sauvegarde-${new Date().toISOString().slice(0,10)}.json`;
+
   document.body.appendChild(a);
   a.click();
   a.remove();
+
   URL.revokeObjectURL(url);
+
   showToast('Sauvegarde téléchargée.');
 });
 
@@ -303,14 +371,27 @@ function renderAll(){
 
 function renderDashboard(){
   const enAttente = clients.filter(c=>c.statut!=='livre');
-  const retard = clients.filter(c=> c.statut!=='livre' && daysUntil(c.dateRetrait)!==null && daysUntil(c.dateRetrait)<0);
+
+  const retard = clients.filter(
+    c=> c.statut!=='livre' &&
+    daysUntil(c.dateRetrait)!==null &&
+    daysUntil(c.dateRetrait)<0
+  );
+
   const urgent = clients.filter(c=>{
     const du = daysUntil(c.dateRetrait);
-    return c.statut!=='livre' && du!==null && du>=0 && du<=1;
+    return c.statut!=='livre' &&
+      du!==null &&
+      du>=0 &&
+      du<=1;
   });
+
   const semaine = clients.filter(c=>{
     const du = daysUntil(c.dateRetrait);
-    return c.statut!=='livre' && du!==null && du>=0 && du<=7;
+    return c.statut!=='livre' &&
+      du!==null &&
+      du>=0 &&
+      du<=7;
   });
 
   document.getElementById('m-attente').textContent = enAttente.length;
@@ -318,48 +399,85 @@ function renderDashboard(){
   document.getElementById('m-retard').textContent = retard.length;
   document.getElementById('m-total').textContent = clients.length;
 
-  document.getElementById('urgent-list').innerHTML = urgent.length ? urgent.map(c=>cardHtml(c)).join('') :
-    '<div class="empty">Rien d\'urgent pour le moment.</div>';
+  document.getElementById('urgent-list').innerHTML = urgent.length
+    ? urgent.map(c=>cardHtml(c)).join('')
+    : '<div class="empty">Rien d\'urgent pour le moment.</div>';
 
-  const upcoming = semaine.slice().sort((a,b)=> (a.dateRetrait||'').localeCompare(b.dateRetrait||''));
-  document.getElementById('upcoming-list').innerHTML = upcoming.length ? upcoming.map(c=>cardHtml(c)).join('') :
-    '<div class="empty">Aucun retrait prévu dans les 7 prochains jours.</div>';
+  const upcoming = semaine
+    .slice()
+    .sort((a,b)=> (a.dateRetrait||'').localeCompare(b.dateRetrait||''));
 
-  document.getElementById('late-list').innerHTML = retard.length ? retard.map(c=>cardHtml(c)).join('') :
-    '<div class="empty">Aucun retard en cours.</div>';
+  document.getElementById('upcoming-list').innerHTML = upcoming.length
+    ? upcoming.map(c=>cardHtml(c)).join('')
+    : '<div class="empty">Aucun retrait prévu dans les 7 prochains jours.</div>';
+
+  document.getElementById('late-list').innerHTML = retard.length
+    ? retard.map(c=>cardHtml(c)).join('')
+    : '<div class="empty">Aucun retard en cours.</div>';
 }
 
 let activeFilter = 'tous';
+
 document.querySelectorAll('.filters button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.filters button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.filters button').forEach(
+      b=>b.classList.remove('active')
+    );
+
     btn.classList.add('active');
     activeFilter = btn.dataset.filter;
+
     renderClientsList();
   });
 });
-document.getElementById('search-input').addEventListener('input', renderClientsList);
+
+document.getElementById('search-input').addEventListener(
+  'input',
+  renderClientsList
+);
 
 function renderClientsList(){
-  const q = document.getElementById('search-input').value.trim().toLowerCase();
-  let list = clients.slice().sort((a,b)=> (a.dateRetrait||'9999').localeCompare(b.dateRetrait||'9999'));
-  if(activeFilter!=='tous') list = list.filter(c=>{
-    if(activeFilter==='en_attente') return c.statut!=='livre' && c.statut!=='pret';
-    return c.statut===activeFilter;
-  });
-  if(q) list = list.filter(c=> c.nom.toLowerCase().includes(q));
+  const q = document
+    .getElementById('search-input')
+    .value
+    .trim()
+    .toLowerCase();
 
-  document.getElementById('clients-list').innerHTML = list.length ? list.map(c=>cardHtml(c, true)).join('') :
-    '<div class="empty">Aucun client trouvé.</div>';
+  let list = clients
+    .slice()
+    .sort((a,b)=> (a.dateRetrait||'9999').localeCompare(b.dateRetrait||'9999'));
+
+  if(activeFilter!=='tous'){
+    list = list.filter(c=>{
+      if(activeFilter==='en_attente'){
+        return c.statut!=='livre' && c.statut!=='pret';
+      }
+
+      return c.statut===activeFilter;
+    });
+  }
+
+  if(q){
+    list = list.filter(c=> c.nom.toLowerCase().includes(q));
+  }
+
+  document.getElementById('clients-list').innerHTML = list.length
+    ? list.map(c=>cardHtml(c, true)).join('')
+    : '<div class="empty">Aucun client trouvé.</div>';
 }
 
 function cardHtml(c, withActions){
   const st = statutLabel(c);
   const reste = (c.prixTotal||0) - (c.montantPaye||0);
   const m = c.mesures||{};
+
   const measureEntries = [
-    ['Cou', m.cou], ['Poitrine', m.poitrine], ['Taille', m.taille], ['Bassin', m.bassin],
-    ['Carrure', m.carrure], ['Manche', m.longueurManche]
+    ['Cou', m.cou],
+    ['Poitrine', m.poitrine],
+    ['Taille', m.taille],
+    ['Bassin', m.bassin],
+    ['Carrure', m.carrure],
+    ['Manche', m.longueurManche]
   ].filter(([,v])=>v);
 
   return `<div class="card">
@@ -371,13 +489,18 @@ function cardHtml(c, withActions){
           <div class="card-sub">${c.tissu ? escapeHtml(c.tissu) : 'Tissu non précisé'} · Retrait : ${fmtDate(c.dateRetrait)}</div>
         </div>
       </div>
+
       <span class="tag ${st.cls}">${st.text}</span>
     </div>
+
     <div class="card-sub" style="margin-top:8px;">
       ${c.telephone ? 'Tél : '+escapeHtml(c.telephone)+' · ' : ''}Reste à payer : ${fmtMoney(reste)}
     </div>
+
     ${measureEntries.length ? `<div class="measures-mini">${measureEntries.map(([l,v])=>`<span>${l}: ${v}cm</span>`).join('')}</div>` : ''}
+
     ${c.modifiePar ? `<div class="card-sub" style="margin-top:4px;font-size:11px;">Ajouté par ${escapeHtml(c.modifiePar)}</div>` : ''}
+
     ${withActions ? `<div class="actions">
       <button class="ghost" onclick="editClient('${c.id}')">Modifier</button>
       ${c.statut!=='pret' && c.statut!=='livre' ? `<button class="ghost" onclick="setStatut('${c.id}','pret')">Marquer prêt</button>` : ''}
@@ -388,5 +511,14 @@ function cardHtml(c, withActions){
 }
 
 function escapeHtml(s){
-  return (s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  return (s||'').replace(
+    /[&<>"']/g,
+    m => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;',
+      '"':'&quot;',
+      "'":'&#39;'
+    }[m])
+  );
 }
